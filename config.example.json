@@ -1,0 +1,4 @@
+{
+  "repo": "在此填写 owner/repo，例如 yourname/workbuddy-cloud-signin",
+  "pat": "在此填写 GitHub fine-grained PAT（Secrets: Read and write）"
+}
