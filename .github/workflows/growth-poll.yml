@@ -1,0 +1,54 @@
+name: WorkBuddy Growth Poll
+
+# 北京时间 01/05/09/13/17/21 点轮询：补签 + 成长中心全套（Buddy 旅行回来即领并补派）
+# UTC 换算（北京 = UTC+8）：17/21/01/05/09/13
+on:
+  schedule:
+    - cron: "0 17 * * *"
+    - cron: "0 21 * * *"
+    - cron: "0 1 * * *"
+    - cron: "0 5 * * *"
+    - cron: "0 9 * * *"
+    - cron: "0 13 * * *"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  poll:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Restore cloud auth from secret
+        env:
+          WORKBUDDY_AUTH: ${{ secrets.WORKBUDDY_AUTH }}
+        run: |
+          if [ -z "$WORKBUDDY_AUTH" ]; then
+            echo "::error::Secret WORKBUDDY_AUTH 未配置。"
+            exit 1
+          fi
+          echo "$WORKBUDDY_AUTH" > cloud-auth.json
+
+      - name: Run growth poll
+        env:
+          WORKBUDDY_AUTH_FILE: cloud-auth.json
+        run: |
+          set -o pipefail
+          python3 signin.py silent-poll 2>&1 | tee run-output.txt
+
+      - name: Publish result to job summary
+        if: always()
+        run: |
+          # silent-poll 空跑无输出时也记录，便于确认任务确实执行过
+          {
+            echo "## WorkBuddy 成长轮询 $(date -u '+%Y-%m-%d %H:%M UTC')"
+            if [ -s run-output.txt ]; then
+              echo '```json'
+              cat run-output.txt
+              echo '```'
+            else
+              echo "空跑（今日已签、无新奖励可领）。"
+            fi
+          } >> "$GITHUB_STEP_SUMMARY"
