@@ -1,0 +1,56 @@
+name: WorkBuddy Daily Checkin
+
+# 每天北京时间 00:05 签到 + 成长中心（UTC 16:05，GitHub cron 用 UTC）
+on:
+  schedule:
+    - cron: "5 16 * * *"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  checkin:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Restore cloud auth from secret
+        env:
+          WORKBUDDY_AUTH: ${{ secrets.WORKBUDDY_AUTH }}
+        run: |
+          if [ -z "$WORKBUDDY_AUTH" ]; then
+            echo "::error::Secret WORKBUDDY_AUTH 未配置。请在仓库 Settings > Secrets and variables > Actions 中添加（JSON：{auth:{accessToken,refreshToken,domain,endpoint},account:{uid}}）。"
+            exit 1
+          fi
+          echo "$WORKBUDDY_AUTH" > cloud-auth.json
+          python3 -c "import json;json.load(open('cloud-auth.json'))" || { echo "::error::WORKBUDDY_AUTH 不是合法 JSON"; exit 1; }
+
+      - name: Run daily checkin
+        env:
+          WORKBUDDY_AUTH_FILE: cloud-auth.json
+        run: |
+          set -o pipefail
+          python3 signin.py silent 2>&1 | tee run-output.txt
+          # silent 模式下无收获不落盘，stdout 已由 tee 捕获
+
+      - name: Publish result to job summary
+        if: always()
+        run: |
+          {
+            echo "## WorkBuddy 每日签到 $(date -u '+%Y-%m-%d %H:%M UTC')"
+            echo '```json'
+            cat run-output.txt
+            echo '```'
+          } >> "$GITHUB_STEP_SUMMARY"
+
+      - name: Upload signin log
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: signin-log
+          path: |
+            signin.log
+            run-output.txt
+          retention-days: 30
+          if-no-files-found: ignore
