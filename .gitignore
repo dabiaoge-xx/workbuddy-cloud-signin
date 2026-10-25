@@ -1,0 +1,7 @@
+# 云端凭据与本地缓存绝不入库
+cloud-auth.json
+config.json
+signin.log
+run-output.txt
+__pycache__/
+*.pyc
